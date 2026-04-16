@@ -51,7 +51,8 @@ const AdminAppointments = () => {
     }
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
     setSelectedAppt(null);
-    toast.success(`Appointment ${status.toLowerCase()} successfully`);
+    const message = status === "Completed" ? "Appointment marked as completed" : `Appointment ${status.toLowerCase()} successfully`;
+    toast.success(message);
   };
 
   const filtered = appointments.filter((a) => {
@@ -171,6 +172,18 @@ const AdminAppointments = () => {
                   </Button>
                   <Button size="sm" variant="destructive" className="text-xs gap-1" onClick={() => updateStatus(selectedAppt.id, "Cancelled")}>
                     <XCircle size={14} /> Decline
+                  </Button>
+                </div>
+              )}
+              {selectedAppt.status === "Approved" && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 border-emerald-500 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
+                    onClick={() => updateStatus(selectedAppt.id, "Completed")}
+                  >
+                    <CheckCircle2 size={14} /> Mark as Completed
                   </Button>
                 </div>
               )}
