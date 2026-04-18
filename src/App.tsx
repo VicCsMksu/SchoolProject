@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,14 +47,21 @@ const AdminRoutes = () => {
   const { isAdminAuthenticated, loading } = useAdminAuth();
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
   }
 
   if (!isAdminAuthenticated) {
     return (
       <Routes>
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/*" element={<Navigate to="/admin/login" replace />} />
+        <Route
+          path="/admin/*"
+          element={<Navigate to="/admin/login" replace />}
+        />
       </Routes>
     );
   }
@@ -72,11 +85,19 @@ const AdminRoutes = () => {
 
 const AppRoutes = () => {
   const { isAuthenticated, loading } = useAuth();
-  const { isProfileComplete, isLoading: profileLoading, isAdmin } = useProfileComplete();
+  const {
+    isProfileComplete,
+    isLoading: profileLoading,
+    isAdmin,
+  } = useProfileComplete();
   const location = useLocation();
 
   if (loading || (isAuthenticated && profileLoading)) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
   }
 
   // Redirect authenticated admins to /admin
@@ -93,7 +114,10 @@ const AppRoutes = () => {
     if (!isProfileComplete && location.pathname !== "/complete-profile") {
       return (
         <Routes>
-          <Route path="*" element={<Navigate to="/complete-profile" replace />} />
+          <Route
+            path="*"
+            element={<Navigate to="/complete-profile" replace />}
+          />
           <Route path="/complete-profile" element={<CompleteProfile />} />
         </Routes>
       );
@@ -101,9 +125,16 @@ const AppRoutes = () => {
 
     return (
       <Routes>
-        <Route path="/complete-profile" element={
-          isProfileComplete ? <Navigate to="/home" replace /> : <CompleteProfile />
-        } />
+        <Route
+          path="/complete-profile"
+          element={
+            isProfileComplete ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <CompleteProfile />
+            )
+          }
+        />
         <Route element={<Layout />}>
           <Route path="/home" element={<Profile />} />
           <Route path="/" element={<Navigate to="/home" replace />} />
@@ -112,8 +143,8 @@ const AppRoutes = () => {
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/about" element={<About />} />
           <Route path="/appointments" element={<Appointments />} />
-          <Route path="/appointment/:id" element={<AppointmentDetail />} />
           <Route path="/appointment/book" element={<BookAppointment />} />
+          <Route path="/appointment/:id" element={<AppointmentDetail />} />
           <Route path="/records" element={<Records />} />
           <Route path="/support" element={<Support />} />
           <Route path="/account" element={<Account />} />
