@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Calendar, Clock, Search, CheckCircle2, XCircle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -38,6 +39,10 @@ const AdminAppointments = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [visitNote, setVisitNote] = useState("");
+  const [showInstructionForm, setShowInstructionForm] = useState(false);
+  const [instructionTitle, setInstructionTitle] = useState("");
+  const [instructionBody, setInstructionBody] = useState("");
 
   const fetchAppointments = async () => {
     const { data, error } = await supabase
@@ -52,24 +57,49 @@ const AdminAppointments = () => {
     fetchAppointments();
   }, []);
 
-  const updateStatus = async (id: string, status: string) => {
+  const updateStatus = async (id: string, status: string, note?: string) => {
+    const updates: Record<string, string> = { status };
+    if (note) updates.visit_note = note;
     const { error } = await supabase
       .from("appointments")
-      .update({ status })
+      .update(updates)
       .eq("id", id);
     if (error) {
       toast.error("Failed to update: " + error.message);
       return;
     }
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status } : a)),
-    );
+    setAppointments(prev => prev.map(a => 
+      a.id === id ? { ...a, status, ...(note ? { visit_note: note } : {}) } : a
+    ));
     setSelectedAppt(null);
-    const message =
-      status === "Completed"
-        ? "Appointment marked as completed"
-        : `Appointment ${status.toLowerCase()} successfully`;
+    setVisitNote("");
+    const message = status === "Completed" 
+      ? "Visit completed and note saved" 
+      : `Appointment ${status.toLowerCase()} successfully`;
     toast.success(message);
+  };
+
+  const sendInstruction = async (patientId: string, appointmentId: string) => {
+    if (!instructionTitle.trim() || !instructionBody.trim()) {
+      toast.error("Please fill in both title and instruction");
+      return;
+    }
+    const { error } = await supabase
+      .from("patient_instructions")
+      .insert({
+        patient_id: patientId,
+        title: instructionTitle.trim(),
+        body: instructionBody.trim(),
+        appointment_id: appointmentId,
+      });
+    if (error) {
+      toast.error("Failed to send instruction: " + error.message);
+      return;
+    }
+    setInstructionTitle("");
+    setInstructionBody("");
+    setShowInstructionForm(false);
+    toast.success("Instruction sent to patient");
   };
 
   const filtered = appointments.filter((a) => {
@@ -227,7 +257,15 @@ const AdminAppointments = () => {
         ))}
       </div>
 
-      <Dialog open={!!selectedAppt} onOpenChange={() => setSelectedAppt(null)}>
+      <Dialog open={!!selectedAppt} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedAppt(null);
+          setVisitNote("");
+          setShowInstructionForm(false);
+          setInstructionTitle("");
+          setInstructionBody("");
+        }
+      }}>
         <DialogContent className="max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle className="text-base">Appointment Details</DialogTitle>
@@ -348,22 +386,84 @@ const AdminAppointments = () => {
                   </Button>
                 </div>
               )}
-              {selectedAppt.status === "Approved" &&
-                !isSessionPast(
-                  selectedAppt.appointment_date,
-                  selectedAppt.appointment_time,
-                ) && (
-                  <div className="pt-2">
+              {selectedAppt.status === "Approved" && (
+                <div className="pt-2 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Visit note (optional)
+                  </p>
+                  <Textarea
+                    value={visitNote}
+                    onChange={(e) => setVisitNote(e.target.value)}
+                    placeholder="e.g. Adjustment done. Next visit in 5 weeks. Avoid hard foods."
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 border-emerald-500 text-emerald-600 
+                      hover:bg-emerald-100 hover:text-emerald-700"
+                    onClick={() => updateStatus(selectedAppt.id, "Completed", visitNote)}
+                  >
+                    <CheckCircle2 size={14} /> Mark as Completed
+                  </Button>
+                </div>
+              )}
+              {selectedAppt && selectedAppt.status !== "Cancelled" && (
+                <div className="pt-2 border-t border-border">
+                  {!showInstructionForm ? (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className="w-full text-xs gap-1.5 border-emerald-500 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
-                      onClick={() => updateStatus(selectedAppt.id, "Completed")}
+                      className="w-full text-xs text-muted-foreground"
+                      onClick={() => setShowInstructionForm(true)}
                     >
-                      <CheckCircle2 size={14} /> Mark as Completed
+                      <FileText size={13} className="mr-1" /> Send care instruction to patient
                     </Button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs font-medium text-foreground">Send instruction</p>
+                      <Input
+                        placeholder="Title e.g. Post-adjustment care"
+                        value={instructionTitle}
+                        onChange={(e) => setInstructionTitle(e.target.value)}
+                        className="text-sm h-9"
+                      />
+                      <Textarea
+                        placeholder="e.g. Avoid hard and sticky foods for 48 hours. Use wax if any wire is irritating your cheek."
+                        value={instructionBody}
+                        onChange={(e) => setInstructionBody(e.target.value)}
+                        rows={3}
+                        className="text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 text-xs"
+                          onClick={() => sendInstruction(
+                            selectedAppt.patient_id, 
+                            selectedAppt.id
+                          )}
+                        >
+                          Send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs"
+                          onClick={() => {
+                            setShowInstructionForm(false);
+                            setInstructionTitle("");
+                            setInstructionBody("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

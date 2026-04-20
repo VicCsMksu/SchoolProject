@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
+import { Check, Calendar, FileText, BookOpen, ClipboardList } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
-const tabs = ["All", "Consultation", "Laboratory Results"];
+const tabs = ["Treatment", "Visits", "Instructions"];
+
 const stages = [
   "Consultation",
   "X-rays & Assessment",
@@ -20,25 +22,19 @@ const stages = [
   "Retainer Phase",
 ];
 
-const formatDate = (value?: string) => {
+const formatDate = (value?: string | null) => {
   if (!value) return "TBD";
-  const date = new Date(value);
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short", day: "numeric", year: "numeric",
   });
 };
 
 const Records = () => {
-  const [activeTab, setActiveTab] = useState("All");
+  const [activeTab, setActiveTab] = useState("Treatment");
   const { user, loading: authLoading } = useAuth();
 
-  const {
-    data: treatmentProgress,
-    isLoading,
-    isError,
-  } = useQuery({
+  // Treatment progress query
+  const { data: treatmentProgress, isLoading: progressLoading } = useQuery({
     queryKey: ["treatment-progress", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -48,7 +44,6 @@ const Records = () => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
@@ -56,225 +51,308 @@ const Records = () => {
     retry: false,
   });
 
-  const treatmentValues = useMemo(() => {
-    if (!treatmentProgress) {
-      return {
-        currentMonth: 0,
-        totalMonths: 0,
-        progressPercent: 0,
-        currentStageIndex: 0,
-      };
-    }
+  // Completed visits query — appointments with status Completed
+  const { data: visits = [], isLoading: visitsLoading } = useQuery({
+    queryKey: ["visit-history", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, doctors(name), services(name)")
+        .eq("patient_id", user?.id || "")
+        .eq("status", "Completed")
+        .order("appointment_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+    retry: false,
+  });
 
-    const startDate = treatmentProgress.start_date
-      ? new Date(treatmentProgress.start_date)
-      : null;
-    const endDate = treatmentProgress.expected_end_date
-      ? new Date(treatmentProgress.expected_end_date)
-      : null;
-    const today = new Date();
+  // Patient instructions query
+  const { data: instructions = [], isLoading: instructionsLoading } = useQuery({
+    queryKey: ["patient-instructions", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patient_instructions")
+        .select("*")
+        .eq("patient_id", user?.id || "")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+    retry: false,
+  });
 
-    const totalMs =
-      startDate && endDate ? endDate.getTime() - startDate.getTime() : 0;
-    const elapsedMs = startDate ? today.getTime() - startDate.getTime() : 0;
-    const progressPercent =
-      totalMs > 0
-        ? Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)))
-        : 0;
-    const totalDays =
-      totalMs > 0 ? Math.max(1, Math.ceil(totalMs / (1000 * 60 * 60 * 24))) : 1;
-    const currentDays = startDate
-      ? Math.min(
-          totalDays,
-          Math.max(1, Math.ceil(elapsedMs / (1000 * 60 * 60 * 24))),
-        )
-      : 1;
-    const totalMonths = Math.max(1, Math.ceil(totalDays / 30));
-    const currentMonth = Math.min(
-      totalMonths,
-      Math.max(1, Math.ceil(currentDays / 30)),
-    );
-    const requestedStage = treatmentProgress.current_stage || "Consultation";
-    const currentStageIndex = Math.max(0, stages.indexOf(requestedStage));
+  // Treatment progress calculations
+  const startDate = treatmentProgress?.start_date 
+    ? new Date(treatmentProgress.start_date) : null;
+  const endDate = treatmentProgress?.expected_end_date 
+    ? new Date(treatmentProgress.expected_end_date) : null;
+  const today = new Date();
 
-    return {
-      currentMonth,
-      totalMonths,
-      progressPercent,
-      currentStageIndex,
-    };
-  }, [treatmentProgress]);
+  const totalMs = startDate && endDate 
+    ? endDate.getTime() - startDate.getTime() : 0;
+  const elapsedMs = startDate 
+    ? today.getTime() - startDate.getTime() : 0;
+  const progressPercent = totalMs > 0
+    ? Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100))) : 0;
+  const totalMonths = totalMs > 0 
+    ? Math.max(1, Math.ceil(totalMs / (1000 * 60 * 60 * 24 * 30))) : 0;
+  const currentMonth = startDate
+    ? Math.min(totalMonths, Math.max(1, 
+        Math.ceil(elapsedMs / (1000 * 60 * 60 * 24 * 30)))) : 0;
 
-  const isEmptyState = !treatmentProgress && !isLoading;
+  const currentStageIndex = treatmentProgress?.current_stage
+    ? Math.max(0, stages.indexOf(treatmentProgress.current_stage)) : 0;
+
+  const isLoading = authLoading || progressLoading;
 
   return (
     <div className="px-5 pt-8 pb-24">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-primary">Treatment Progress</h1>
+        <h1 className="text-xl font-bold text-primary">My Records</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Track your orthodontic journey from consultation to your final smile.
+          Track your treatment, visit history, and clinic instructions.
         </p>
       </div>
 
-      <div className="mb-8 flex gap-4 border-b border-border">
+      {/* Tabs */}
+      <div className="mb-6 flex gap-1 border-b border-border">
         {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-sm font-medium transition-colors ${
+            className={cn(
+              "flex items-center gap-1.5 pb-2 px-1 text-sm font-medium transition-colors",
               activeTab === tab
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
+            {tab === "Treatment" && <ClipboardList size={14} />}
+            {tab === "Visits" && <Calendar size={14} />}
+            {tab === "Instructions" && <BookOpen size={14} />}
             {tab}
           </button>
         ))}
       </div>
 
-      {authLoading || isLoading ? (
-        <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">
-          Loading…
-        </div>
-      ) : isError ? (
-        <div className="flex min-h-[60vh] items-center justify-center text-sm text-destructive">
-          Unable to load treatment progress. Please try again later.
-        </div>
-      ) : isEmptyState ? (
-        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 rounded-3xl border border-border bg-background/80 p-8 text-center">
-          <h3 className="text-base font-bold text-primary">
-            No active treatment found
-          </h3>
-          <p className="max-w-xs text-sm text-muted-foreground">
-            Once your orthodontist starts your treatment, your progress will
-            appear here.
-          </p>
-          <Button asChild variant="secondary">
-            <Link to="/doctors">Book a Consultation</Link>
-          </Button>
-        </div>
-      ) : (
+      {/* TAB 1: Treatment Summary */}
+      {activeTab === "Treatment" && (
         <div className="space-y-6">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="space-y-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Active treatment
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold text-foreground">
-                    {treatmentProgress.service_name || "Orthodontic Care"}
-                  </h2>
-                </div>
-                <Badge className="rounded-full px-3 py-1 text-sm">
-                  {treatmentProgress.current_stage || "Consultation"}
-                </Badge>
-              </div>
+          {isLoading ? (
+            <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : !treatmentProgress ? (
+            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 
+              rounded-3xl border border-border bg-background/80 p-8 text-center">
+              <ClipboardList size={32} className="text-muted-foreground" />
+              <h3 className="text-base font-bold text-primary">No active treatment</h3>
+              <p className="max-w-xs text-sm text-muted-foreground">
+                Once your orthodontist starts your treatment plan, your progress will appear here.
+              </p>
+              <Button asChild variant="secondary">
+                <Link to="/doctors">Book a Consultation</Link>
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Active treatment card */}
+              <Card className="border-0 shadow-sm">
+                <CardContent className="space-y-5 pt-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                        Active treatment
+                      </p>
+                      <h2 className="mt-1 text-xl font-bold text-foreground">
+                        {treatmentProgress.service_name || "Orthodontic Care"}
+                      </h2>
+                    </div>
+                    <Badge className="rounded-full px-3 text-xs">
+                      {treatmentProgress.current_stage || "Consultation"}
+                    </Badge>
+                  </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Start date
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">
-                    {formatDate(treatmentProgress.start_date)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Expected end date
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">
-                    {formatDate(treatmentProgress.expected_end_date)}
-                  </p>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border bg-muted/40 p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Started
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {formatDate(treatmentProgress.start_date)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/40 p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Expected end
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {formatDate(treatmentProgress.expected_end_date)}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Progress</span>
-                  <span>{treatmentValues.progressPercent}%</span>
-                </div>
-                <Progress value={treatmentValues.progressPercent} />
-                <p className="text-xs text-muted-foreground">
-                  Month {treatmentValues.currentMonth} of{" "}
-                  {treatmentValues.totalMonths}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Overall progress</span>
+                      <span>{progressPercent}%</span>
+                    </div>
+                    <Progress value={progressPercent} />
+                    <p className="text-xs text-muted-foreground">
+                      Month {currentMonth} of {totalMonths}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent>
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
+              {/* Stage timeline */}
+              <Card className="border-0 shadow-sm">
+                <CardContent className="pt-5">
+                  <p className="text-sm font-semibold text-foreground mb-4">
                     Treatment stages
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Follow your treatment milestones from consultation to
-                    retainer.
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-6">
-                {stages.map((stage, index) => {
-                  const isComplete = index < treatmentValues.currentStageIndex;
-                  const isCurrent = index === treatmentValues.currentStageIndex;
-
-                  return (
-                    <div key={stage} className="relative pl-10">
-                      <div className="absolute left-0 top-2 flex h-full w-6 items-start justify-center">
-                        <div className="relative flex h-6 w-6 items-center justify-center">
-                          {isComplete ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
-                              <Check size={14} />
-                            </span>
-                          ) : isCurrent ? (
-                            <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
-                              <span className="absolute inset-0 animate-pulse rounded-full bg-primary/30" />
-                              <span className="relative h-2.5 w-2.5 rounded-full bg-white" />
-                            </span>
-                          ) : (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
-                              <span className="h-2.5 w-2.5 rounded-full bg-transparent" />
-                            </span>
+                  <div className="space-y-5">
+                    {stages.map((stage, index) => {
+                      const isComplete = index < currentStageIndex;
+                      const isCurrent = index === currentStageIndex;
+                      return (
+                        <div key={stage} className="relative pl-10">
+                          <div className="absolute left-0 top-1 flex h-full w-6 items-start justify-center">
+                            <div className="relative flex h-6 w-6 items-center justify-center">
+                              {isComplete ? (
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white">
+                                  <Check size={13} />
+                                </span>
+                              ) : isCurrent ? (
+                                <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-primary">
+                                  <span className="absolute inset-0 animate-pulse rounded-full bg-primary/30" />
+                                  <span className="relative h-2.5 w-2.5 rounded-full bg-white" />
+                                </span>
+                              ) : (
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-border bg-background" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-border bg-muted/40 p-3">
+                            <p className="text-sm font-semibold text-foreground">{stage}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {isComplete ? "Completed" : isCurrent ? "In progress" : "Upcoming"}
+                            </p>
+                          </div>
+                          {index < stages.length - 1 && (
+                            <span className="absolute left-2.5 top-7 h-[calc(100%-0.5rem)] w-px bg-border" />
                           )}
                         </div>
-                      </div>
-                      <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                        <h3 className="text-sm font-semibold text-foreground">
-                          {stage}
-                        </h3>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {isComplete
-                            ? "Completed"
-                            : isCurrent
-                              ? "Current stage"
-                              : "Up next"}
-                        </p>
-                      </div>
-                      {index < stages.length - 1 && (
-                        <span className="absolute left-2 top-8 h-[calc(100%_-_1.5rem)] w-px bg-border" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
 
-          <Card className="border-0 shadow-sm">
-            <CardContent>
-              <h3 className="text-sm font-semibold text-foreground">
-                {activeTab}
-              </h3>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Coming soon: medical document uploads will be available here for{" "}
-                {activeTab.toLowerCase()}.
+      {/* TAB 2: Visit History */}
+      {activeTab === "Visits" && (
+        <div className="space-y-3">
+          {visitsLoading ? (
+            <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : visits.length === 0 ? (
+            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 
+              rounded-3xl border border-border bg-background/80 p-8 text-center">
+              <Calendar size={32} className="text-muted-foreground" />
+              <h3 className="text-base font-bold text-primary">No visits yet</h3>
+              <p className="max-w-xs text-sm text-muted-foreground">
+                Your completed appointment visits will appear here, including any notes from your practitioner.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            visits.map((visit) => (
+              <Card key={visit.id} className="border-0 shadow-sm">
+                <CardContent className="pt-4 pb-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">
+                        {visit.services?.name || "Visit"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {visit.doctors?.name || "MaxxDental Clinic"}
+                      </p>
+                    </div>
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 
+                      text-[10px] font-semibold rounded-full">
+                      Completed
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      {formatDate(visit.appointment_date)}
+                    </span>
+                    <span>{visit.appointment_time}</span>
+                  </div>
+                  {visit.visit_note && (
+                    <div className="mt-2 rounded-xl bg-primary/5 border border-primary/10 p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-primary mb-1">
+                        Practitioner note
+                      </p>
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {visit.visit_note}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: Instructions */}
+      {activeTab === "Instructions" && (
+        <div className="space-y-3">
+          {instructionsLoading ? (
+            <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : instructions.length === 0 ? (
+            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 
+              rounded-3xl border border-border bg-background/80 p-8 text-center">
+              <BookOpen size={32} className="text-muted-foreground" />
+              <h3 className="text-base font-bold text-primary">No instructions yet</h3>
+              <p className="max-w-xs text-sm text-muted-foreground">
+                Care instructions and guidance from your clinic will appear here.
+              </p>
+            </div>
+          ) : (
+            instructions.map((item) => (
+              <Card key={item.id} className="border-0 shadow-sm">
+                <CardContent className="pt-4 pb-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center 
+                      rounded-full bg-primary/10">
+                      <FileText size={15} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{item.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                        {item.body}
+                      </p>
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        {formatDate(item.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
     </div>

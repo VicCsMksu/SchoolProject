@@ -30,6 +30,7 @@ export type Database = {
           service_id: string | null;
           status: string;
           updated_at: string;
+          visit_note: string | null;
         };
         Insert: {
           appointment_date: string;
@@ -46,6 +47,7 @@ export type Database = {
           service_id?: string | null;
           status?: string;
           updated_at?: string;
+          visit_note?: string | null;
         };
         Update: {
           appointment_date?: string;
@@ -62,6 +64,7 @@ export type Database = {
           service_id?: string | null;
           status?: string;
           updated_at?: string;
+          visit_note?: string | null;
         };
         Relationships: [
           {
@@ -364,6 +367,33 @@ export type Database = {
           id?: string;
           role?: Database["public"]["Enums"]["app_role"];
           user_id?: string;
+        };
+        Relationships: [];
+      };
+      patient_instructions: {
+        Row: {
+          id: string;
+          patient_id: string;
+          title: string;
+          body: string;
+          appointment_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          title: string;
+          body: string;
+          appointment_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_id?: string;
+          title?: string;
+          body?: string;
+          appointment_id?: string | null;
+          created_at?: string;
         };
         Relationships: [];
       };
