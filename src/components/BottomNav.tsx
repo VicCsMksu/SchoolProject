@@ -1,12 +1,12 @@
-import { Home, Calendar, FileText, HeadsetIcon, UserCircle } from "lucide-react";
+import { Home, Calendar, FileText, CreditCard, UserCircle } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/home", icon: Home, label: "Profile" },
+  { to: "/home", icon: Home, label: "Home" },
   { to: "/appointments", icon: Calendar, label: "Appointments" },
   { to: "/records", icon: FileText, label: "Records" },
-  { to: "/support", icon: HeadsetIcon, label: "Support" },
+  { to: "/payment-plans", icon: CreditCard, label: "Plans" },
   { to: "/account", icon: UserCircle, label: "Account" },
 ];
 
@@ -24,7 +24,7 @@ const BottomNav = () => {
                 "flex flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors",
                 isActive
                   ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )
             }
           >
@@ -33,7 +33,7 @@ const BottomNav = () => {
                 <div
                   className={cn(
                     "rounded-full p-1.5 transition-colors",
-                    isActive && "bg-secondary"
+                    isActive && "bg-secondary",
                   )}
                 >
                   <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />

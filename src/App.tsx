@@ -31,6 +31,7 @@ import Support from "./pages/Support";
 import Account from "./pages/Account";
 import EditProfile from "./pages/EditProfile";
 import Settings from "./pages/Settings";
+import PaymentPlans from "./pages/PaymentPlans";
 import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -143,6 +144,7 @@ const AppRoutes = () => {
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/about" element={<About />} />
           <Route path="/appointments" element={<Appointments />} />
+          <Route path="/payment-plans" element={<PaymentPlans />} />
           <Route path="/appointment/book" element={<BookAppointment />} />
           <Route path="/appointment/:id" element={<AppointmentDetail />} />
           <Route path="/records" element={<Records />} />

@@ -29,11 +29,11 @@ export function getDerivedStatus(
   appointmentTime: string,
 ): string {
   if (status === "Cancelled") return "Cancelled";
-  if (
-    status === "Approved" &&
-    isSessionPast(appointmentDate, appointmentTime)
-  ) {
-    return "Past";
+  if (status === "Approved" && isSessionPast(appointmentDate, appointmentTime)) {
+    return "Completed";
+  }
+  if (status === "Rescheduled" && isSessionPast(appointmentDate, appointmentTime)) {
+    return "Completed";
   }
   return status;
 }

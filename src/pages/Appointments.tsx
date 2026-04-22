@@ -15,7 +15,6 @@ const statusColors: Record<string, string> = {
   Completed: "bg-blue-100 text-blue-700 border-blue-200",
   Cancelled: "bg-red-100 text-red-700 border-red-200",
   Rescheduled: "bg-blue-100 text-blue-700 border-blue-200",
-  Past: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 const Appointments = () => {
@@ -29,12 +28,13 @@ const Appointments = () => {
       return (
         a.status !== "Cancelled" &&
         a.status !== "Completed" &&
-        a.appointment_date >= today
+        !isSessionPast(a.appointment_date, a.appointment_time)
       );
     if (activeTab === "past")
       return (
         isSessionPast(a.appointment_date, a.appointment_time) ||
-        a.status === "Completed"
+        a.status === "Completed" ||
+        (a.status === "Rescheduled" && isSessionPast(a.appointment_date, a.appointment_time))
       );
     if (activeTab === "cancelled") return a.status === "Cancelled";
     return true;
@@ -65,7 +65,7 @@ const Appointments = () => {
             Upcoming
           </TabsTrigger>
           <TabsTrigger value="past" className="text-[11px]">
-            Past
+            Completed
           </TabsTrigger>
           <TabsTrigger value="cancelled" className="text-[11px]">
             Cancelled
@@ -79,14 +79,14 @@ const Appointments = () => {
             {activeTab === "upcoming"
               ? "No upcoming appointments"
               : activeTab === "past"
-                ? "No past appointments"
+                ? "No completed appointments"
                 : "No cancelled appointments"}
           </h3>
           <p className="mb-6 text-center text-xs text-muted-foreground">
             {activeTab === "upcoming"
               ? "You have no upcoming appointments."
               : activeTab === "past"
-                ? "You have no past appointments."
+                ? "You have no completed appointments."
                 : "You have no cancelled appointments."}
           </p>
           <Button

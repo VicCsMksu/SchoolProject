@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, Search, CheckCircle2, XCircle, FileText } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Search,
+  CheckCircle2,
+  XCircle,
+  FileText,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -68,14 +75,19 @@ const AdminAppointments = () => {
       toast.error("Failed to update: " + error.message);
       return;
     }
-    setAppointments(prev => prev.map(a => 
-      a.id === id ? { ...a, status, ...(note ? { visit_note: note } : {}) } : a
-    ));
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, status, ...(note ? { visit_note: note } : {}) }
+          : a,
+      ),
+    );
     setSelectedAppt(null);
     setVisitNote("");
-    const message = status === "Completed" 
-      ? "Visit completed and note saved" 
-      : `Appointment ${status.toLowerCase()} successfully`;
+    const message =
+      status === "Completed"
+        ? "Visit completed and note saved"
+        : `Appointment ${status.toLowerCase()} successfully`;
     toast.success(message);
   };
 
@@ -91,6 +103,8 @@ const AdminAppointments = () => {
         title: instructionTitle.trim(),
         body: instructionBody.trim(),
         appointment_id: appointmentId,
+        service_name: selectedAppt?.services?.name || null,
+        appointment_date: selectedAppt?.appointment_date || null,
       });
     if (error) {
       toast.error("Failed to send instruction: " + error.message);
@@ -257,15 +271,18 @@ const AdminAppointments = () => {
         ))}
       </div>
 
-      <Dialog open={!!selectedAppt} onOpenChange={(open) => {
-        if (!open) {
-          setSelectedAppt(null);
-          setVisitNote("");
-          setShowInstructionForm(false);
-          setInstructionTitle("");
-          setInstructionBody("");
-        }
-      }}>
+      <Dialog
+        open={!!selectedAppt}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAppt(null);
+            setVisitNote("");
+            setShowInstructionForm(false);
+            setInstructionTitle("");
+            setInstructionBody("");
+          }
+        }}
+      >
         <DialogContent className="max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle className="text-base">Appointment Details</DialogTitle>
@@ -403,7 +420,9 @@ const AdminAppointments = () => {
                     size="sm"
                     className="w-full text-xs gap-1.5 border-emerald-500 text-emerald-600 
                       hover:bg-emerald-100 hover:text-emerald-700"
-                    onClick={() => updateStatus(selectedAppt.id, "Completed", visitNote)}
+                    onClick={() =>
+                      updateStatus(selectedAppt.id, "Completed", visitNote)
+                    }
                   >
                     <CheckCircle2 size={14} /> Mark as Completed
                   </Button>
@@ -418,11 +437,14 @@ const AdminAppointments = () => {
                       className="w-full text-xs text-muted-foreground"
                       onClick={() => setShowInstructionForm(true)}
                     >
-                      <FileText size={13} className="mr-1" /> Send care instruction to patient
+                      <FileText size={13} className="mr-1" /> Send care
+                      instruction to patient
                     </Button>
                   ) : (
                     <div className="space-y-2 pt-1">
-                      <p className="text-xs font-medium text-foreground">Send instruction</p>
+                      <p className="text-xs font-medium text-foreground">
+                        Send instruction
+                      </p>
                       <Input
                         placeholder="Title e.g. Post-adjustment care"
                         value={instructionTitle}
@@ -440,10 +462,12 @@ const AdminAppointments = () => {
                         <Button
                           size="sm"
                           className="flex-1 text-xs"
-                          onClick={() => sendInstruction(
-                            selectedAppt.patient_id, 
-                            selectedAppt.id
-                          )}
+                          onClick={() =>
+                            sendInstruction(
+                              selectedAppt.patient_id,
+                              selectedAppt.id,
+                            )
+                          }
                         >
                           Send
                         </Button>

@@ -41,7 +41,6 @@ const statusColors: Record<string, string> = {
   Completed: "bg-blue-100 text-blue-700 border-blue-200",
   Cancelled: "bg-red-100 text-red-700 border-red-200",
   Rescheduled: "bg-blue-100 text-blue-700 border-blue-200",
-  Past: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 const sessions = [
@@ -63,9 +62,9 @@ const AppointmentDetail = () => {
         .from("appointments")
         .select("*, doctors(name), services(name)")
         .eq("id", id!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!id,
   });
@@ -87,13 +86,11 @@ const AppointmentDetail = () => {
 
   if (!appointment) {
     return (
-      <div className="px-5 pt-8 text-center">
-        <p className="text-muted-foreground">Appointment not found.</p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => navigate("/appointments")}
-        >
+      <div className="px-5 pt-8 text-center space-y-3">
+        <p className="text-muted-foreground text-sm">
+          This appointment could not be found.
+        </p>
+        <Button variant="outline" onClick={() => navigate("/appointments")}>
           Back to Appointments
         </Button>
       </div>
@@ -265,6 +262,37 @@ const AppointmentDetail = () => {
           </div>
         )}
       </div>
+
+      {serviceName && (
+        <div
+          className="mt-4 rounded-xl bg-primary/5 border border-primary/15 p-3
+          flex items-center justify-between"
+        >
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-primary mb-0.5">
+              Payment guide
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {serviceName}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Costs, timeline, and care guide
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full text-xs font-semibold shrink-0"
+            onClick={() =>
+              navigate(
+                `/payment-plans?service=${encodeURIComponent(serviceName)}`,
+              )
+            }
+          >
+            View Guide
+          </Button>
+        </div>
+      )}
 
       {appointment.status === "Pending" && (
         <div className="mb-5 rounded-lg border border-primary/20 bg-secondary p-3 flex gap-2">
