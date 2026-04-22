@@ -8,6 +8,7 @@ import {
   Info,
   RotateCw,
   XCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,8 @@ const statusColors: Record<string, string> = {
   Completed: "bg-blue-100 text-blue-700 border-blue-200",
   Cancelled: "bg-red-100 text-red-700 border-red-200",
   Rescheduled: "bg-blue-100 text-blue-700 border-blue-200",
+  "Pending Reschedule": "bg-orange-100 text-orange-700 border-orange-200",
+  "Reschedule Offered": "bg-cyan-100 text-cyan-700 border-cyan-200",
 };
 
 const sessions = [
@@ -111,6 +114,7 @@ const AppointmentDetail = () => {
   const isActive =
     appointment.status !== "Cancelled" &&
     appointment.status !== "Completed" &&
+    appointment.status !== "Reschedule Offered" &&
     !isSessionPast(appointment.appointment_date, appointment.appointment_time);
 
   const handleReschedule = () => {
@@ -318,6 +322,81 @@ const AppointmentDetail = () => {
               {appointment.reschedule_reason}
             </p>
           )}
+        </div>
+      )}
+
+      {appointment.status === "Reschedule Offered" && (
+        <div className="mb-5 rounded-xl border border-cyan-300 bg-cyan-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <RotateCw size={16} className="text-cyan-600" />
+            <p className="text-sm font-bold text-cyan-800">
+              MaxxDental has proposed a new time
+            </p>
+          </div>
+          {appointment.reschedule_offer_date && (
+            <div className="space-y-1">
+              <p className="text-xs text-cyan-700">
+                <span className="font-semibold">Proposed date: </span>
+                {new Date(appointment.reschedule_offer_date).toLocaleDateString(
+                  "en-US",
+                  { month: "long", day: "numeric", year: "numeric" },
+                )}
+              </p>
+              <p className="text-xs text-cyan-700">
+                <span className="font-semibold">Proposed time: </span>
+                {appointment.reschedule_offer_time}
+              </p>
+              {appointment.reschedule_offer_note && (
+                <p className="text-xs text-cyan-700 mt-1">
+                  {appointment.reschedule_offer_note}
+                </p>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Button
+              size="sm"
+              className="text-xs gap-1"
+              onClick={() =>
+                updateAppointment.mutate(
+                  {
+                    id: appointment.id,
+                    updates: {
+                      status: "Approved",
+                      appointment_date:
+                        appointment.reschedule_offer_date ??
+                        appointment.appointment_date,
+                      appointment_time:
+                        appointment.reschedule_offer_time ??
+                        appointment.appointment_time,
+                    },
+                  },
+                  {
+                    onSuccess: () => toast.success("New time accepted"),
+                    onError: (err) => toast.error("Failed: " + err.message),
+                  },
+                )
+              }
+            >
+              <CheckCircle2 size={13} /> Accept
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs gap-1 border-red-300 text-red-600 hover:bg-red-50"
+              onClick={() =>
+                updateAppointment.mutate(
+                  { id: appointment.id, updates: { status: "Cancelled" } },
+                  {
+                    onSuccess: () => toast.success("Appointment cancelled"),
+                    onError: (err) => toast.error("Failed: " + err.message),
+                  },
+                )
+              }
+            >
+              <XCircle size={13} /> Decline
+            </Button>
+          </div>
         </div>
       )}
 
