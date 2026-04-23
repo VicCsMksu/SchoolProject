@@ -85,7 +85,7 @@ const AdminAppointments = () => {
     const { data, error } = await supabase
       .from("appointments")
       .select("*, doctors(name), services(name)")
-      .order("created_at", { ascending: false });
+      .order("appointment_date", { ascending: false });
     if (!error && data) setAppointments(data as Appointment[]);
     setLoading(false);
   };
@@ -167,7 +167,10 @@ const AdminAppointments = () => {
   const counts: Record<FilterStatus, number> = {
     all: appointments.length,
     pending: appointments.filter((a) => a.status === "Pending").length,
-    approved: appointments.filter((a) => a.status === "Approved").length,
+    approved: appointments.filter((a) =>
+      a.status === "Approved" &&
+      !isSessionPast(a.appointment_date, a.appointment_time)
+    ).length,
     pending_reschedule: appointments.filter(
       (a) => a.status === "Pending Reschedule",
     ).length,
@@ -222,7 +225,9 @@ const AdminAppointments = () => {
     const matchesFilter =
       activeFilter === "all" ||
       (activeFilter === "pending" && a.status === "Pending") ||
-      (activeFilter === "approved" && a.status === "Approved") ||
+      (activeFilter === "approved" &&
+        a.status === "Approved" &&
+        !isSessionPast(a.appointment_date, a.appointment_time)) ||
       (activeFilter === "pending_reschedule" &&
         a.status === "Pending Reschedule") ||
       (activeFilter === "reschedule_offered" &&

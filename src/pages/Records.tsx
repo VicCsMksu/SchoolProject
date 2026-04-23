@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Check,
   Calendar,
   FileText,
-  BookOpen,
   ClipboardList,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { isSessionPast } from "@/lib/sessionUtils";
 
-const tabs = ["Treatment", "Visits", "Instructions"];
+const tabs = ["Treatment", "Visits", "Updates"];
 
 const stages = [
   "Consultation",
@@ -101,7 +103,11 @@ const getVisitChecklist = (serviceName: string): string[] => {
 };
 
 const Records = () => {
-  const [activeTab, setActiveTab] = useState("Treatment");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "Treatment";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
 
   // Treatment progress query
@@ -145,20 +151,61 @@ const Records = () => {
     retry: false,
   });
 
-  // Patient instructions query
-  const { data: instructions = [], isLoading: instructionsLoading } = useQuery({
-    queryKey: ["patient-instructions", user?.id],
+  const { data: updates = [], isLoading: updatesLoading } = useQuery({
+    queryKey: ["patient-updates", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_instructions")
-        .select("*, appointments(appointment_date, appointment_time, services(name))")
-        .eq("patient_id", user?.id || "")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      const [notifRes, instrRes] = await Promise.all([
+        supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user?.id || "")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("patient_instructions")
+          .select("*")
+          .eq("patient_id", user?.id || "")
+          .order("created_at", { ascending: false }),
+      ]);
+      const notifications = (notifRes.data || []).map(n => ({
+        id: n.id,
+        kind: "notification" as const,
+        title: n.title,
+        body: n.body,
+        read: n.read ?? true,
+        created_at: n.created_at,
+        appointment_id: n.appointment_id ?? null,
+        service_context: null as string | null,
+      }));
+      const instructions = (instrRes.data || []).map((i: any) => ({
+        id: i.id,
+        kind: "instruction" as const,
+        title: i.title,
+        body: i.body,
+        read: true,
+        created_at: i.created_at,
+        appointment_id: i.appointment_id ?? null,
+        service_context: i.service_name ?? null,
+      }));
+      return [...notifications, ...instructions].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     },
     enabled: !!user,
     retry: false,
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("user_id", user?.id || "")
+        .eq("read", false);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-updates", user?.id] });
+    },
   });
 
   // Treatment progress calculations
@@ -218,7 +265,7 @@ const Records = () => {
           >
             {tab === "Treatment" && <ClipboardList size={14} />}
             {tab === "Visits" && <Calendar size={14} />}
-            {tab === "Instructions" && <BookOpen size={14} />}
+            {tab === "Updates" && <Bell size={14} />}
             {tab}
           </button>
         ))}
@@ -439,51 +486,83 @@ const Records = () => {
         </div>
       )}
 
-      {/* TAB 3: Instructions */}
-      {activeTab === "Instructions" && (
+      {/* TAB 3: Updates */}
+      {activeTab === "Updates" && (
         <div className="space-y-3">
-          {instructionsLoading ? (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {updates.filter(u => !u.read).length} unread
+            </p>
+            {updates.some(u => !u.read) && (
+              <button
+                className="text-xs font-semibold text-primary"
+                onClick={() => markAllReadMutation.mutate()}
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {updatesLoading ? (
             <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
               Loading...
             </div>
-          ) : instructions.length === 0 ? (
-            <div
-              className="flex min-h-[50vh] flex-col items-center justify-center gap-4 
-              rounded-3xl border border-border bg-background/80 p-8 text-center"
-            >
-              <BookOpen size={32} className="text-muted-foreground" />
-              <h3 className="text-base font-bold text-primary">
-                No instructions yet
-              </h3>
+          ) : updates.length === 0 ? (
+            <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4
+              rounded-3xl border border-border bg-background/80 p-8 text-center">
+              <Bell size={32} className="text-muted-foreground" />
+              <h3 className="text-base font-bold text-primary">All caught up</h3>
               <p className="max-w-xs text-sm text-muted-foreground">
-                Care instructions and guidance from your clinic will appear
-                here.
+                Appointment updates and clinic instructions will appear here.
               </p>
             </div>
           ) : (
-            instructions.map((item) => (
-              <Card key={item.id} className="border-0 shadow-sm">
+            updates.map(item => (
+              <Card
+                key={`${item.kind}-${item.id}`}
+                className={cn(
+                  "border-0 shadow-sm cursor-pointer transition-colors",
+                  !item.read && "border-l-4 border-l-primary"
+                )}
+                onClick={() => {
+                  if (item.appointment_id)
+                    navigate(`/appointment/${item.appointment_id}`);
+                }}
+              >
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center 
-                      rounded-full bg-primary/10">
-                      <FileText size={15} className="text-primary" />
+                    <div className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5",
+                      item.kind === "instruction" ? "bg-primary/10"
+                        : !item.read ? "bg-primary/10" : "bg-muted"
+                    )}>
+                      {item.kind === "instruction"
+                        ? <FileText size={14} className="text-primary" />
+                        : <Bell size={14} className={!item.read ? "text-primary" : "text-muted-foreground"} />
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
-                      {/* Linked appointment context */}
-                      {item.appointments && (
-                        <p className="text-[10px] uppercase tracking-widest 
-                          text-muted-foreground mb-1">
-                          {item.appointments.services?.name || "Your appointment"} · {" "}
-                          {formatDate(item.appointments.appointment_date)}
+                      {item.service_context && (
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-0.5">
+                          {item.service_context}
                         </p>
                       )}
-                      <p className="text-sm font-bold text-foreground">{item.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-bold text-foreground">{item.title}</p>
+                        {item.kind === "instruction" && (
+                          <Badge variant="secondary"
+                            className="text-[9px] shrink-0 bg-primary/10 text-primary">
+                            From clinic
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                         {item.body}
                       </p>
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        Sent by clinic · {formatDate(item.created_at)}
+                        {item.created_at
+                          ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true })
+                          : ""}
                       </p>
                     </div>
                   </div>

@@ -1,9 +1,6 @@
-import { Menu, Stethoscope, Bell } from "lucide-react";
+import { Menu, Stethoscope } from "lucide-react";
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -22,23 +19,6 @@ const navItems = [
 
 const TopNav = () => {
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["unread-notifications", user?.id],
-    queryFn: async () => {
-      if (!user) return 0;
-      const { count } = await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("read", false);
-      return count ?? 0;
-    },
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between bg-primary px-5 py-3">
@@ -46,23 +26,6 @@ const TopNav = () => {
       <div className="flex items-center gap-2">
         <Stethoscope className="text-primary-foreground" size={28} />
       </div>
-
-      {/* Bell Icon */}
-      <button
-        onClick={() => navigate("/notifications")}
-        className="relative rounded-md p-1.5 text-primary-foreground 
-          hover:bg-primary-foreground/10"
-      >
-        <Bell size={22} />
-        {unreadCount > 0 && (
-          <span
-            className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center
-            justify-center rounded-full bg-red-500 text-[9px] font-bold text-white"
-          >
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </button>
 
       {/* Hamburger */}
       <Sheet open={open} onOpenChange={setOpen}>

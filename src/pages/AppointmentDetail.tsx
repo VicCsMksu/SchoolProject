@@ -124,7 +124,7 @@ const AppointmentDetail = () => {
         updates: {
           appointment_date: newDate,
           appointment_time: newTime,
-          status: "Rescheduled",
+          status: "Pending Reschedule",
           reschedule_reason: rescheduleReason,
         },
       },

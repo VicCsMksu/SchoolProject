@@ -200,7 +200,7 @@ const Profile = () => {
               )}
             </div>
             <button
-              onClick={() => navigate("/notifications")}
+              onClick={() => navigate("/records?tab=updates")}
               className="flex items-center gap-0.5 text-xs text-primary font-semibold"
             >
               View all <ChevronRight size={14} />
