@@ -15,6 +15,7 @@ export interface ServiceGuide {
   stagedAvailable: boolean;
   stagedNote: string;
   timeline: { phase: string; duration: string; detail: string }[];
+  phaseOffsets: number[];
   whatToExpect: { heading: string; body: string }[];
   careAndLifestyle: { heading: string; body: string }[];
   bookingCta: string;
@@ -79,6 +80,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
           "The doctor walks you through the recommended treatment, expected duration, costs, and payment options. You leave with a written plan.",
       },
     ],
+    phaseOffsets: [0, 0, 0, 0, 0],
     whatToExpect: [
       {
         heading: "No pain involved",
@@ -173,6 +175,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
           "Retainers are worn every night permanently. This is what keeps your teeth in their new position.",
       },
     ],
+    phaseOffsets: [0, 7, 21, 60, 540, 600, 630],
     whatToExpect: [
       {
         heading: "Soreness after fitting (3 – 7 days)",
@@ -275,6 +278,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
           "Ceramic brackets are removed and the enamel is polished. Retainers are fitted on the same day.",
       },
     ],
+    phaseOffsets: [0, 7, 21, 60, 510, 540, 570],
     whatToExpect: [
       {
         heading: "Aesthetics are the main advantage",
@@ -369,6 +373,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
         detail: "Brackets removed, teeth polished, retainers fitted.",
       },
     ],
+    phaseOffsets: [0, 7, 21, 56, 390, 420, 450],
     whatToExpect: [
       {
         heading: "Fewer appointments overall",
@@ -461,6 +466,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
           "A final scan checks the result. Refinement trays correct any remaining minor movements. Retainers are fitted at completion.",
       },
     ],
+    phaseOffsets: [0, 21, 35, 49, 360, 390, 420],
     whatToExpect: [
       {
         heading: "Must wear 20 – 22 hours per day",
@@ -550,6 +556,7 @@ export const serviceGuides: Record<string, ServiceGuide> = {
           "A check 4 weeks after fitting confirms the retainer is working correctly and teeth are stable.",
       },
     ],
+    phaseOffsets: [0, 14, 21, 42],
     whatToExpect: [
       {
         heading: "Why retainers are non-negotiable",

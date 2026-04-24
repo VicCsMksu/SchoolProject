@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -59,17 +58,22 @@ const SignIn = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/home",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
       });
-      if (result.error) {
-        toast.error("Google sign-in failed. Please try again.");
-        return;
+      if (error) {
+        toast.error("Google sign-in failed: " + error.message);
       }
-      if (result.redirected) return;
-      navigate("/home");
+      // No navigate() call needed — Supabase redirects the browser automatically
     } catch {
-      toast.error("Google sign-in failed.");
+      toast.error("Google sign-in failed. Please try again.");
     } finally {
       setGoogleLoading(false);
     }

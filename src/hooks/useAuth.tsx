@@ -27,21 +27,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+   useEffect(() => {
+     // Handle OAuth callback — Supabase fires SIGNED_IN after redirect
+     const { data: { subscription } } = supabase.auth.onAuthStateChange(
+       (event, session) => {
+         setSession(session);
+         setUser(session?.user ?? null);
+         setLoading(false);
+       }
+     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+     // Get the current session on mount (handles page refresh)
+     supabase.auth.getSession().then(({ data: { session } }) => {
+       setSession(session);
+       setUser(session?.user ?? null);
+       setLoading(false);
+     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+     return () => subscription.unsubscribe();
+   }, []);
 
   const login = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

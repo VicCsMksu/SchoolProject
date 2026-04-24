@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { isSessionPast } from "@/lib/sessionUtils";
+import AdvancedServiceGuide from "@/components/AdvancedServiceGuide";
 
 const tabs = ["Treatment", "Visits", "Updates"];
 
@@ -122,6 +123,23 @@ const Records = () => {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+    retry: false,
+  });
+
+  const { data: activeAppointment } = useQuery({
+    queryKey: ["active-appointment-records", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("appointments")
+        .select("*, services(name)")
+        .eq("patient_id", user?.id || "")
+        .in("status", ["Approved", "Pending"])
+        .order("appointment_date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
       return data;
     },
     enabled: !!user,
@@ -239,6 +257,16 @@ const Records = () => {
     ? Math.max(0, stages.indexOf(treatmentProgress.current_stage))
     : 0;
 
+  const guideServiceName =
+    treatmentProgress?.service_name ||
+    (activeAppointment as any)?.services?.name ||
+    null;
+
+  const guideAppointmentDate =
+    treatmentProgress?.start_date ||
+    activeAppointment?.appointment_date ||
+    null;
+
   const isLoading = authLoading || progressLoading;
 
   return (
@@ -279,22 +307,44 @@ const Records = () => {
               Loading...
             </div>
           ) : !treatmentProgress ? (
-            <div
-              className="flex min-h-[50vh] flex-col items-center justify-center gap-4 
-              rounded-3xl border border-border bg-background/80 p-8 text-center"
-            >
-              <ClipboardList size={32} className="text-muted-foreground" />
-              <h3 className="text-base font-bold text-primary">
-                No active treatment
-              </h3>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Once your orthodontist starts your treatment plan, your progress
-                will appear here.
-              </p>
-              <Button asChild variant="secondary">
-                <Link to="/doctors">Book a Consultation</Link>
-              </Button>
-            </div>
+            guideServiceName && guideAppointmentDate ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center">
+                  <p className="text-sm font-bold text-primary mb-1">
+                    Appointment confirmed
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Your treatment progress tracker will appear here once your 
+                    orthodontist activates your treatment plan. Your service 
+                    guide is ready below.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Your service guide
+                  </p>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                <AdvancedServiceGuide
+                  serviceName={guideServiceName}
+                  appointmentDate={guideAppointmentDate}
+                />
+              </div>
+            ) : (
+              <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4
+                rounded-3xl border border-border bg-background/80 p-8 text-center">
+                <ClipboardList size={32} className="text-muted-foreground" />
+                <h3 className="text-base font-bold text-primary">No active treatment</h3>
+                <p className="max-w-xs text-sm text-muted-foreground">
+                  Once your appointment is approved, your personalised treatment 
+                  guide will appear here.
+                </p>
+                <Button asChild variant="secondary">
+                  <Link to="/doctors">Book a Consultation</Link>
+                </Button>
+              </div>
+            )
           ) : (
             <>
               {/* Active treatment card */}
@@ -394,9 +444,25 @@ const Records = () => {
                     })}
                   </div>
                 </CardContent>
-              </Card>
-            </>
-          )}
+               </Card>
+
+               {guideServiceName && guideAppointmentDate && (
+                 <div className="mt-2">
+                   <div className="flex items-center gap-2 mb-3 px-1">
+                     <div className="h-px flex-1 bg-border" />
+                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                       Your service guide
+                     </p>
+                     <div className="h-px flex-1 bg-border" />
+                   </div>
+                   <AdvancedServiceGuide
+                     serviceName={guideServiceName}
+                     appointmentDate={guideAppointmentDate}
+                   />
+                 </div>
+               )}
+             </>
+           )}
         </div>
       )}
 
