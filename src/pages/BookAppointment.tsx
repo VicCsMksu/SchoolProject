@@ -9,6 +9,9 @@ import {
   FileText,
   Stethoscope,
   Edit,
+  Baby,
+  CheckCircle2,
+  Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppointments } from "@/hooks/useAppointments";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -61,6 +65,22 @@ const BookAppointment = () => {
   const [bookingFor, setBookingFor] = useState<"myself" | "dependent">(
     "myself",
   );
+
+  const { data: dependents = [] } = useQuery({
+    queryKey: ["dependents", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("dependents")
+        .select("*")
+        .eq("patient_id", user!.id)
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!user && bookingFor === "dependent",
+  });
+
+  const [selectedDependentId, setSelectedDependentId] = useState("");
+  const [useManualEntry, setUseManualEntry] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Data from DB
@@ -131,6 +151,9 @@ const BookAppointment = () => {
         notes,
         mode: "In-person",
         status: "Pending",
+        dependent_id: bookingFor === "dependent"
+          ? selectedDependentId || null
+          : null,
       },
       {
         onSuccess: () => setShowSuccess(true),
@@ -146,7 +169,10 @@ const BookAppointment = () => {
 
   const getPatientName = () => {
     if (bookingFor === "myself") return "Self";
-    return [firstName, middleName, lastName].filter(Boolean).join(" ");
+    const dep = dependents.find(
+      (d: Tables<"dependents">) => d.id === selectedDependentId
+    );
+    return dep?.full_name || "Dependent";
   };
 
   const progressDots = (
@@ -334,92 +360,118 @@ const BookAppointment = () => {
         </div>
       )}
 
-      {/* Patient Details (dependent only, step 3) */}
-      {bookingFor === "dependent" && step === 3 && (
-        <div className="animate-fade-in">
-          <h2 className="text-lg font-bold text-primary mb-1">
-            Patient Details
-          </h2>
-          <p className="text-xs text-muted-foreground mb-5">
-            Provide the dependent's information.
-          </p>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-xs font-semibold">First Name</Label>
-              <Input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold">
-                Middle Name{" "}
-                <span className="text-muted-foreground font-normal">
-                  (Optional)
-                </span>
-              </Label>
-              <Input
-                value={middleName}
-                onChange={(e) => setMiddleName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold">Last Name</Label>
-              <Input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold">Date of Birth</Label>
-              <Input
-                type="date"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold">Phone Number</Label>
-              <Input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="07XXXXXXXX"
-              />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold mb-2 block">Sex</Label>
-              <RadioGroup
-                value={sex}
-                onValueChange={setSex}
-                className="flex gap-6"
+  {bookingFor === "dependent" && step === 3 && (
+    <div className="animate-fade-in">
+      <h2 className="text-lg font-bold text-primary mb-1">
+        Select Dependent
+      </h2>
+      <p className="text-xs text-muted-foreground mb-5">
+        Choose the family member this appointment is for.
+      </p>
+
+      {dependents.length === 0 ? (
+        /* No dependents registered — gate the flow */
+        <div className="flex flex-col items-center justify-center
+          py-10 gap-5 text-center">
+          <div className="flex h-16 w-16 items-center justify-center
+            rounded-full bg-muted">
+            <Baby size={28} className="text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground mb-1">
+              No dependents found
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed
+              max-w-xs mx-auto">
+              You need to add a dependent in your Account page before
+              booking for a family member.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="rounded-full font-semibold gap-2"
+            onClick={() => navigate("/account")}
+          >
+            <Users size={15} />
+            Go to Account to add a dependent
+          </Button>
+          <button
+            className="text-xs text-muted-foreground underline"
+            onClick={() => { setBookingFor("myself"); setStep(0); }}
+          >
+            Book for myself instead
+          </button>
+        </div>
+      ) : (
+        /* Dependent picker */
+        <div className="space-y-2">
+          {dependents.map((dep: Tables<"dependents">) => {
+            const age = dep.date_of_birth
+              ? Math.floor(
+                  (Date.now() -
+                    new Date(dep.date_of_birth + "T12:00:00").getTime()) /
+                  (365.25 * 24 * 60 * 60 * 1000)
+                )
+              : null;
+            const isSelected = selectedDependentId === dep.id;
+            return (
+              <Card
+                key={dep.id}
+                className={cn(
+                  "border cursor-pointer transition-all",
+                  isSelected
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "hover:bg-muted/50"
+                )}
+                onClick={() => setSelectedDependentId(dep.id)}
               >
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="Male" id="male" />
-                  <Label htmlFor="male" className="text-sm">
-                    Male
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="Female" id="female" />
-                  <Label htmlFor="female" className="text-sm">
-                    Female
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-          </div>
-          <div className="flex justify-center mt-6">
-            <Button
-              className="rounded-full px-10 font-semibold"
-              onClick={handleNext}
-              disabled={!firstName || !lastName}
-            >
-              Next
-            </Button>
-          </div>
-          {progressDots}
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center",
+                    "rounded-full transition-colors",
+                    isSelected ? "bg-primary" : "bg-primary/10"
+                  )}>
+                    <Baby
+                      size={18}
+                      className={isSelected
+                        ? "text-primary-foreground"
+                        : "text-primary"}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {dep.full_name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {dep.relationship}
+                      {age !== null && ` · ${age} yrs`}
+                      {dep.gender && ` · ${dep.gender}`}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <CheckCircle2 size={18} className="text-primary shrink-0" />
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
+
+      {dependents.length > 0 && (
+        <div className="flex justify-center mt-6">
+          <Button
+            className="rounded-full px-10 font-semibold"
+            onClick={handleNext}
+            disabled={!selectedDependentId}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+      {progressDots}
+    </div>
+  )}
 
       {/* Appointment Details */}
       {step === getDetailsStep() && (

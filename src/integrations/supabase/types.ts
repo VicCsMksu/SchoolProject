@@ -31,6 +31,7 @@ export type Database = {
           status: string;
           updated_at: string;
           visit_note: string | null;
+          dependent_id: string | null;
         };
         Insert: {
           appointment_date: string;
@@ -48,6 +49,7 @@ export type Database = {
           status?: string;
           updated_at?: string;
           visit_note?: string | null;
+          dependent_id?: string | null;
         };
         Update: {
           appointment_date?: string;
@@ -65,6 +67,7 @@ export type Database = {
           status?: string;
           updated_at?: string;
           visit_note?: string | null;
+          dependent_id?: string | null;
         };
         Relationships: [
           {
@@ -396,6 +399,44 @@ export type Database = {
           created_at?: string;
         };
         Relationships: [];
+      };
+      dependents: {
+        Row: {
+          id: string;
+          patient_id: string;
+          full_name: string;
+          date_of_birth: string | null;
+          gender: string | null;
+          relationship: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          full_name: string;
+          date_of_birth?: string | null;
+          gender?: string | null;
+          relationship?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_id?: string;
+          full_name?: string;
+          date_of_birth?: string | null;
+          gender?: string | null;
+          relationship?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "dependents_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          }
+        ];
       };
     };
     Views: {

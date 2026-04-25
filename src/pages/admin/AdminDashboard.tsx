@@ -103,6 +103,7 @@ const AdminDashboard = () => {
   const [openAppt,    setOpenAppt]    = useState(true);
   const [openService, setOpenService] = useState(false);
   const [openDoctor,  setOpenDoctor]  = useState(false);
+  const [openPatient, setOpenPatient] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-analytics-v2"],
@@ -275,6 +276,80 @@ const AdminDashboard = () => {
         Completed:    d.completed,
       }));
 
+      // ── PATIENT section ─────────────────────────────────────────────────────
+
+      // Full profiles for gender and age — need all fields
+      const { data: fullProfiles } = await supabase
+        .from("profiles")
+        .select("id, created_at, gender, date_of_birth");
+
+      const allProfiles = fullProfiles || [];
+
+      // Gender breakdown
+      const genderCounts: Record<string, number> = {};
+      allProfiles.forEach(p => {
+        const g = p.gender || "Not specified";
+        genderCounts[g] = (genderCounts[g] || 0) + 1;
+      });
+      const genderData = Object.entries(genderCounts)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+      // Age group distribution (derived from date_of_birth)
+      const ageGroups = {
+        "Under 12": 0,
+        "13 – 17": 0,
+        "18 – 25": 0,
+        "26 – 35": 0,
+        "36 – 50": 0,
+        "50+": 0,
+        "Unknown": 0,
+      };
+      allProfiles.forEach(p => {
+        if (!p.date_of_birth) { ageGroups["Unknown"] += 1; return; }
+        const age = Math.floor(
+          (Date.now() - new Date(p.date_of_birth).getTime()) /
+          (365.25 * 24 * 60 * 60 * 1000)
+        );
+        if (age < 12)       ageGroups["Under 12"] += 1;
+        else if (age <= 17) ageGroups["13 – 17"]  += 1;
+        else if (age <= 25) ageGroups["18 – 25"]  += 1;
+        else if (age <= 35) ageGroups["26 – 35"]  += 1;
+        else if (age <= 50) ageGroups["36 – 50"]  += 1;
+        else                ageGroups["50+"]       += 1;
+      });
+      const ageData = Object.entries(ageGroups)
+        .filter(([, v]) => v > 0)
+        .map(([name, value]) => ({ name, value }));
+
+      // New patients per month (last 6 months)
+      const patientMonthly = months.map(m => ({
+        month: m.label,
+        New: allProfiles.filter(p =>
+          p.created_at &&
+          getMonthKey(p.created_at.split("T")[0]) === m.key
+        ).length,
+      }));
+
+      // Self vs dependent ratio
+      const selfBookings = appts.filter(a => !a.dependent_id).length;
+      const dependentBookings = appts.filter(a => a.dependent_id).length;
+      const dependentData = [
+        { name: "Self", value: selfBookings },
+        { name: "Dependent", value: dependentBookings },
+      ].filter(d => d.value > 0);
+
+      // Returning vs new patients
+      const apptCountByPatient: Record<string, number> = {};
+      appts.forEach(a => {
+        apptCountByPatient[a.patient_id] =
+          (apptCountByPatient[a.patient_id] || 0) + 1;
+      });
+      const returningPatients = Object.values(apptCountByPatient)
+        .filter(c => c > 1).length;
+      const newPatients = Object.values(apptCountByPatient)
+        .filter(c => c === 1).length;
+
       // Recent activity
       const recent = [...appts]
         .sort((a, b) =>
@@ -309,6 +384,14 @@ const AdminDashboard = () => {
         // Doctor
         doctorTableData,
         radarData,
+        // Patient
+        genderData,
+        ageData,
+        patientMonthly,
+        dependentData,
+        returningPatients,
+        newPatients,
+        totalDependentBookings: dependentBookings,
         // Recent
         recent,
       };
@@ -814,6 +897,174 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── PATIENTS SECTION ─────────────────────────────────────── */}
+      <Card className="border shadow-sm">
+        <CardContent className="px-4 pt-4 pb-3 space-y-4">
+          <SectionToggle
+            title="Patients"
+            subtitle="Demographics, age groups, booking behaviour"
+            open={openPatient}
+            onToggle={() => setOpenPatient(p => !p)}
+          />
+
+          {openPatient && (
+            <>
+              {/* Retention quick stats */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  {
+                    label: "Total patients",
+                    value: data.totalPatients,
+                    note: "all time",
+                  },
+                  {
+                    label: "Returning",
+                    value: data.returningPatients,
+                    note: "2+ appointments",
+                  },
+                  {
+                    label: "Dependent bookings",
+                    value: data.totalDependentBookings,
+                    note: "booked for others",
+                  },
+                ].map(s => (
+                  <div key={s.label}
+                    className="rounded-xl bg-muted/50 border border-border
+                      p-2.5 text-center">
+                    <p className="text-base font-extrabold text-foreground">
+                      {s.value}
+                    </p>
+                    <p className="text-[9px] font-semibold text-muted-foreground leading-tight">
+                      {s.label}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">{s.note}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Self vs dependent donut */}
+              {data.dependentData.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">
+                    Self vs dependent bookings
+                  </p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={data.dependentData} cx="50%" cy="50%"
+                        innerRadius={45} outerRadius={70}
+                        paddingAngle={4} dataKey="value">
+                        <Cell fill="#185FA5" />
+                        <Cell fill="#10b981" />
+                      </Pie>
+                      <Tooltip contentStyle={ttStyle} />
+                      <Legend iconSize={8}
+                        wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Age group bar chart */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-3">
+                  Patient age groups
+                </p>
+                {data.ageData.length === 0 ? (
+                  <p className="text-center text-xs text-muted-foreground py-4">
+                    No date of birth data available yet
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={data.ageData}
+                      margin={{ top: 0, right: 0, left: -28, bottom: 0 }}
+                      barSize={22}>
+                      <XAxis dataKey="name"
+                        tick={{ fontSize: 9, fill: "#888" }}
+                        axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#888" }}
+                        axisLine={false} tickLine={false}
+                        allowDecimals={false} />
+                      <Tooltip contentStyle={ttStyle} />
+                      <Bar dataKey="value" name="Patients"
+                        radius={[4, 4, 0, 0]}>
+                        {data.ageData.map((_, i) => (
+                          <Cell key={i}
+                            fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* Gender breakdown */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-3">
+                  Gender breakdown
+                </p>
+                {data.genderData.length === 0 ? (
+                  <p className="text-center text-xs text-muted-foreground py-4">
+                    No gender data available yet
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.genderData.map((g, i) => {
+                      const max = data.genderData[0]?.value || 1;
+                      return (
+                        <div key={g.name} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-foreground">
+                              {g.name}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-muted-foreground">
+                                {Math.round((g.value / data.totalPatients) * 100)}%
+                              </p>
+                              <p className="text-xs font-bold text-foreground">
+                                {g.value}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full"
+                              style={{
+                                width: `${Math.round((g.value / max) * 100)}%`,
+                                background: CHART_COLORS[i % CHART_COLORS.length],
+                              }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* New patient registrations trend */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-3">
+                  New patient registrations — last 6 months
+                </p>
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={data.patientMonthly}
+                    margin={{ top: 0, right: 0, left: -28, bottom: 0 }}
+                    barSize={22}>
+                    <XAxis dataKey="month"
+                      tick={{ fontSize: 10, fill: "#888" }}
+                      axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#888" }}
+                      axisLine={false} tickLine={false}
+                      allowDecimals={false} />
+                    <Tooltip contentStyle={ttStyle} />
+                    <Bar dataKey="New" name="New patients"
+                      fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </>
           )}
