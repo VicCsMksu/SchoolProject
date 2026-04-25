@@ -39,7 +39,7 @@ const Index = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-full rounded-full border-primary-foreground text-primary-foreground font-semibold hover:bg-primary-foreground/20"
+                className="w-full rounded-full border-primary-foreground text-primary font-semibold bg-background/80 hover:bg-background"
               >
                 View Our Services
               </Button>
